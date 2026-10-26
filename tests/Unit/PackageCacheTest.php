@@ -128,6 +128,24 @@ final class PackageCacheTest extends TestCase
         self::assertSame('invalid', $this->cache->validatePackage($mismatched)['status']);
     }
 
+    public function testVendorArchiveCanBeStoredWhenLockHasNoDistChecksum(): void
+    {
+        $package = $this->package('foo/bar', '1.2.3', 'ref-123');
+
+        self::assertTrue($this->cache->storeArchive($package, $this->sourceArchive, 'vendor'));
+        self::assertSame('valid', $this->cache->validatePackage($package)['status']);
+
+        $archive = (string) $this->cache->findCachedArchive($package);
+        $metadata = json_decode((string) file_get_contents(dirname($archive) . '/metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('vendor', $metadata['archiveSource']);
+    }
+
+    public function testVendorArchiveIsRejectedWhenLockRequiresOriginalSha1(): void
+    {
+        $package = $this->package('foo/bar', '1.2.3', 'ref-123', (string) hash_file('sha1', $this->sourceArchive));
+        self::assertFalse($this->cache->storeArchive($package, $this->sourceArchive, 'vendor'));
+    }
+
     public function testSymbolicLinkCacheDirectoryIsRejected(): void
     {
         mkdir($this->projectRoot . '/outside');

@@ -45,14 +45,25 @@ final class PackageCache
     /**
      * Copy a Composer-verified distribution archive into the project cache.
      */
-    public function storeArchive(PackageInterface $package, string $source): bool
+    public function storeArchive(PackageInterface $package, string $source, string $archiveSource = 'distribution'): bool
     {
-        if (!$this->isSupportedPackage($package) || !$this->validator->isValidZip($source)) {
+        if (
+            !$this->isSupportedPackage($package)
+            || !in_array($archiveSource, ['distribution', 'vendor'], true)
+            || !$this->validator->isValidZip($source)
+        ) {
             return false;
         }
 
         $expectedSha1 = $package->getDistSha1Checksum();
-        if ($expectedSha1 !== null && $expectedSha1 !== '' && !hash_equals($expectedSha1, (string) hash_file('sha1', $source))) {
+        if (
+            $expectedSha1 !== null
+            && $expectedSha1 !== ''
+            && (
+                $archiveSource === 'vendor'
+                || !hash_equals($expectedSha1, (string) hash_file('sha1', $source))
+            )
+        ) {
             return false;
         }
 
@@ -96,12 +107,13 @@ final class PackageCache
                 }
 
                 $metadata = [
-                    'schemaVersion' => 1,
+                    'schemaVersion' => 2,
                     'packageName' => strtolower($package->getName()),
                     'packageVersion' => $package->getVersion(),
                     'distReference' => $package->getDistReference(),
                     'distType' => 'zip',
                     'archiveFilename' => 'package.zip',
+                    'archiveSource' => $archiveSource,
                     'archiveSha256' => $checksum,
                     'archiveSize' => $archiveSize,
                     'createdAt' => gmdate('c'),
@@ -247,7 +259,7 @@ final class PackageCache
         }
 
         $expected = [
-            'schemaVersion' => 1,
+            'schemaVersion' => 2,
             'packageName' => strtolower($package->getName()),
             'packageVersion' => $package->getVersion(),
             'distReference' => $package->getDistReference(),
@@ -261,7 +273,9 @@ final class PackageCache
         }
 
         if (
-            !isset($metadata['archiveSha256'])
+            !isset($metadata['archiveSource'])
+            || !in_array($metadata['archiveSource'], ['distribution', 'vendor'], true)
+            || !isset($metadata['archiveSha256'])
             || !is_string($metadata['archiveSha256'])
             || preg_match('/^[a-f0-9]{64}$/', $metadata['archiveSha256']) !== 1
             || !isset($metadata['archiveSize'])
@@ -285,8 +299,20 @@ final class PackageCache
         }
 
         $expectedSha1 = $package->getDistSha1Checksum();
-        if ($expectedSha1 !== null && $expectedSha1 !== '' && !hash_equals($expectedSha1, (string) hash_file('sha1', $paths['archive']))) {
-            return ['status' => 'invalid', 'message' => 'Archive SHA-1 checksum does not match the locked package checksum.'];
+        if (
+            $expectedSha1 !== null
+            && $expectedSha1 !== ''
+            && (
+                $metadata['archiveSource'] === 'vendor'
+                || !hash_equals($expectedSha1, (string) hash_file('sha1', $paths['archive']))
+            )
+        ) {
+            return [
+                'status' => 'invalid',
+                'message' => $metadata['archiveSource'] === 'vendor'
+                    ? 'Composer requires the original distribution SHA-1, so a vendor-repacked archive cannot be used for this package.'
+                    : 'Archive SHA-1 checksum does not match the locked package checksum.',
+            ];
         }
 
         if (!$this->validator->isValidZip($paths['archive'])) {

@@ -117,6 +117,16 @@ composer persistent-cache:validate
 
 The command reports valid, missing, invalid, unsupported, and stale entries. Missing, invalid, or stale entries produce a non-zero exit status. It does not delete or repair entries.
 
+If an allowlisted package is already installed at the exact version in `composer.lock`, you can create a persistent cache archive directly from its files under Composer's `vendor-dir`:
+
+```sh
+composer persistent-cache:pack vendor/package-a
+```
+
+The command verifies the package is allowlisted and locked, checks the installed version/reference, and requires its resolved install path to be inside `vendor/`. It writes a normal ZIP archive containing the installed package files and stores it with `archiveSource: "vendor"` metadata. Symlinks and non-regular filesystem entries are rejected. Review the installed files before packing: this command intentionally captures the contents currently present in `vendor/`, which may include local modifications.
+
+A vendor-packed ZIP is newly assembled and cannot match the original distribution archive's locked SHA-1 checksum. Therefore `persistent-cache:pack` refuses packages whose lock entry has a non-empty `dist.shasum`; Composer would reject the repacked archive during installation. When the lock has no distribution SHA-1, the repacked archive is checked using cache metadata SHA-256 and size, while package name, version, and distribution reference remain bound to the lock. Archives captured from Composer's distribution download continue to require the lock's SHA-1 when one is provided.
+
 To invalidate a package manually, remove its specific directory under `.composer-cache/packages/<vendor>/<package>/` and reinstall while the repository is available. To remove all persistent archives, delete `.composer-cache/packages/`; the plugin does not perform automatic cleanup.
 
 ## Integrity and security

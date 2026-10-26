@@ -35,7 +35,7 @@ final class OfflineInstallTest extends TestCase
                             'type' => 'zip',
                             'url' => 'file://' . $archive,
                             'reference' => 'fixture-ref-1',
-                            'shasum' => sha1_file($archive),
+                            'shasum' => '',
                         ],
                     ],
                 ],
@@ -70,6 +70,15 @@ final class OfflineInstallTest extends TestCase
             self::assertNotFalse($lockHash);
 
             $this->removeDirectory($project . '/.composer-cache/packages/fixture/cached-package');
+            [$code, $output] = $this->runComposer($project, $home, 'persistent-cache:pack', 'fixture/cached-package');
+            self::assertSame(0, $code, $output);
+            $packedMetadata = glob($project . '/.composer-cache/packages/fixture/cached-package/*/metadata.json');
+            self::assertNotFalse($packedMetadata);
+            self::assertCount(1, $packedMetadata);
+            $metadata = json_decode((string) file_get_contents($packedMetadata[0]), true, 512, JSON_THROW_ON_ERROR);
+            self::assertSame('vendor', $metadata['archiveSource']);
+            self::assertSame($lockHash, hash_file('sha256', $project . '/composer.lock'));
+
             $this->removeDirectory($project . '/vendor/fixture/cached-package');
             [$code, $output] = $this->runComposer($project, $home, 'install');
             self::assertSame(0, $code, $output);
@@ -114,10 +123,13 @@ final class OfflineInstallTest extends TestCase
     /**
      * @return array{int, string}
      */
-    private function runComposer(string $project, string $home, string $command): array
+    private function runComposer(string $project, string $home, string $command, ?string $argument = null): array
     {
         $arguments = ['composer', $command, '--no-interaction', '--no-scripts'];
-        if ($command !== 'persistent-cache:validate') {
+        if ($argument !== null) {
+            $arguments[] = $argument;
+        }
+        if (!in_array($command, ['persistent-cache:validate', 'persistent-cache:pack'], true)) {
             $arguments[] = '--no-progress';
         }
         $process = proc_open(
