@@ -1,0 +1,32 @@
+{
+    "name": "hoarseleg/composer-persistent-cache",
+    "description": "A project-local persistent archive cache for explicitly allowlisted Composer packages",
+    "type": "composer-plugin",
+    "license": "MIT",
+    "require": {
+        "php": "^8.1",
+        "ext-zip": "*",
+        "composer-plugin-api": "^2.1"
+    },
+    "require-dev": {
+        "composer/composer": "^2.1",
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "HoarseLeg\\PersistentCache\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "HoarseLeg\\PersistentCache\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "class": "HoarseLeg\\PersistentCache\\PersistentCachePlugin",
+        "plugin-modifies-downloads": true
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
